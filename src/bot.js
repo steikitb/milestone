@@ -1,5 +1,5 @@
 require('dotenv').config();
-const TelegramBot = require('node-telegram-bot-api');
+const { TelegramBot } = require('node-telegram-bot-api');
 
 const { register } = require('./commands/daftar');
 const { aktif, nonaktif, updateLocation } = require('./commands/status');
