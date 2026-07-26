@@ -14,6 +14,9 @@ if (!token) {
 
 const bot = new TelegramBot(token, { polling: true });
 
+bot.on('polling_error', (err) => console.error('polling_error:', err.message));
+bot.on('message', (msg) => console.log('pesan masuk:', msg.chat.id, JSON.stringify(msg.text || msg)));
+
 bot.onText(/^\/start$/, (msg) => {
   bot.sendMessage(
     msg.chat.id,

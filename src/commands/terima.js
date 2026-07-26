@@ -28,10 +28,8 @@ function terima(bot, msg, orderId) {
 
   const order = getOrder.get(orderId);
   bot.sendMessage(chatId, `Orderan #${orderId} diterima. Selesaikan lalu balas /selesai_${orderId}.`);
-  bot.sendMessage(
-    order.requester_telegram_id,
-    `${worker.name} menerima orderan #${orderId} kamu. Hubungi via kontak Telegram ini kalau perlu koordinasi.`
-  );
+  bot.sendMessage(order.requester_telegram_id, `${worker.name} menerima orderan #${orderId} kamu. Kontaknya:`);
+  bot.sendContact(order.requester_telegram_id, worker.phone, worker.name);
 }
 
 function selesai(bot, msg, orderId) {
