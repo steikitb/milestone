@@ -1,0 +1,54 @@
+const db = require('../db');
+
+const getOrder = db.prepare('SELECT * FROM orders WHERE id = ?');
+const getWorker = db.prepare('SELECT * FROM workers WHERE telegram_id = ?');
+const acceptOrder = db.prepare(
+  "UPDATE orders SET status = 'diterima', worker_id = ?, accepted_at = datetime('now') WHERE id = ? AND status = 'menunggu'"
+);
+const completeOrder = db.prepare(
+  "UPDATE orders SET status = 'selesai', completed_at = datetime('now') WHERE id = ? AND worker_id = ? AND status = 'diterima'"
+);
+const bumpWorkerCount = db.prepare(
+  'UPDATE workers SET orders_completed_today = orders_completed_today + 1 WHERE id = ?'
+);
+
+function terima(bot, msg, orderId) {
+  const chatId = msg.chat.id;
+  const worker = getWorker.get(msg.from.id);
+  if (!worker) {
+    bot.sendMessage(chatId, 'Belum terdaftar sebagai pekerja. Pakai /daftar dulu.');
+    return;
+  }
+
+  const result = acceptOrder.run(worker.id, orderId);
+  if (result.changes === 0) {
+    bot.sendMessage(chatId, `Orderan #${orderId} sudah diambil orang lain atau tidak ditemukan.`);
+    return;
+  }
+
+  const order = getOrder.get(orderId);
+  bot.sendMessage(chatId, `Orderan #${orderId} diterima. Selesaikan lalu balas /selesai_${orderId}.`);
+  bot.sendMessage(
+    order.requester_telegram_id,
+    `${worker.name} menerima orderan #${orderId} kamu. Hubungi via kontak Telegram ini kalau perlu koordinasi.`
+  );
+}
+
+function selesai(bot, msg, orderId) {
+  const chatId = msg.chat.id;
+  const worker = getWorker.get(msg.from.id);
+  if (!worker) return;
+
+  const result = completeOrder.run(orderId, worker.id);
+  if (result.changes === 0) {
+    bot.sendMessage(chatId, `Orderan #${orderId} bukan milikmu atau belum diterima.`);
+    return;
+  }
+
+  bumpWorkerCount.run(worker.id);
+  const order = getOrder.get(orderId);
+  bot.sendMessage(chatId, `Orderan #${orderId} ditandai selesai. Pembayaran langsung antar kamu dan pemesan (tunai/QRIS pribadi).`);
+  bot.sendMessage(order.requester_telegram_id, `Orderan #${orderId} sudah ditandai selesai oleh ${worker.name}.`);
+}
+
+module.exports = { terima, selesai };

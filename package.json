@@ -1,0 +1,17 @@
+{
+  "name": "milestone-bot",
+  "version": "0.0.1",
+  "description": "Bot Telegram Fase 0 untuk Milestone — infrastruktur ekonomi lokal tanpa tengkulak digital",
+  "main": "src/bot.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/bot.js",
+    "dev": "node --watch src/bot.js"
+  },
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
