@@ -20,6 +20,29 @@ const getOrder = db.prepare('SELECT * FROM orders WHERE id = ?');
 const activeWorkersWithLocation = db.prepare(
   'SELECT * FROM workers WHERE active = 1 AND lat IS NOT NULL AND lng IS NOT NULL'
 );
+const pendingOrders = db.prepare("SELECT * FROM orders WHERE status = 'menunggu'");
+
+// Hanya true saat benar-benar menunggu lokasi (bukan saat masih menunggu
+// deskripsi diketik) — supaya location yang nyasar tetap jatuh ke updateLocation.
+function hasPendingDraft(chatId) {
+  return pendingDrafts.has(chatId);
+}
+
+function offerOrder(bot, telegramId, order) {
+  bot.sendMessage(telegramId, `📦 Orderan #${order.id} [${order.module}]\n${order.description}`, {
+    reply_markup: { inline_keyboard: [[{ text: '✅ Terima', callback_data: `terima:${order.id}` }]] },
+  });
+}
+
+// Dipanggil tiap kali pekerja aktif/pindah lokasi — supaya orderan yang sudah
+// menunggu SEBELUM pekerja ini aktif tetap ditawarkan, bukan terkubur diam-diam.
+function tawarkanOrderTertunda(bot, worker) {
+  if (worker.lat == null || worker.lng == null) return;
+  pendingOrders
+    .all()
+    .filter((o) => estimateDistanceKm(worker.lat, worker.lng, o.lat, o.lng) <= MAX_RADIUS_KM)
+    .forEach((o) => offerOrder(bot, worker.telegram_id, o));
+}
 
 function moduleKeyboard() {
   return {
@@ -122,11 +145,8 @@ async function handleLocation(bot, msg) {
 }
 
 function broadcastToWorkers(bot, orderId, draft, workers) {
-  workers.forEach((w) => {
-    bot.sendMessage(w.telegram_id, `📦 Orderan #${orderId} [${draft.module}]\n${draft.description}`, {
-      reply_markup: { inline_keyboard: [[{ text: '✅ Terima', callback_data: `terima:${orderId}` }]] },
-    });
-  });
+  const order = { id: orderId, module: draft.module, description: draft.description };
+  workers.forEach((w) => offerOrder(bot, w.telegram_id, order));
 }
 
-module.exports = { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation, MODULES };
+module.exports = { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation, hasPendingDraft, tawarkanOrderTertunda, MODULES };

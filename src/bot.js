@@ -3,7 +3,7 @@ const { TelegramBot } = require('node-telegram-bot-api');
 
 const { register } = require('./commands/daftar');
 const { aktif, nonaktif, updateLocation } = require('./commands/status');
-const { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation } = require('./commands/pesan');
+const { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation, hasPendingDraft } = require('./commands/pesan');
 const { terima, selesai } = require('./commands/terima');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -39,9 +39,15 @@ bot.onText(/^\/pesan(?:\s+(.+))?$/, (msg, match) => {
 bot.onText(/^\/terima_(\d+)$/, (msg, match) => terima(bot, msg.from.id, msg.chat.id, Number(match[1])));
 bot.onText(/^\/selesai_(\d+)$/, (msg, match) => selesai(bot, msg.from.id, msg.chat.id, Number(match[1])));
 
+// Satu event lokasi dipakai bergantian oleh alur /aktif (pekerja) dan /pesan
+// (pemesan) — pilih salah satu berdasarkan draft mana yang sedang menunggu,
+// supaya pemesan yang belum jadi pekerja tidak kena pesan "belum terdaftar".
 bot.on('location', (msg) => {
-  updateLocation(bot, msg);
-  handleLocation(bot, msg);
+  if (hasPendingDraft(msg.chat.id)) {
+    handleLocation(bot, msg);
+  } else {
+    updateLocation(bot, msg);
+  }
 });
 
 // Deskripsi pesanan diketik sebagai teks biasa setelah modul dipilih lewat tombol.

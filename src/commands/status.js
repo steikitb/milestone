@@ -1,4 +1,5 @@
 const db = require('../db');
+const { tawarkanOrderTertunda } = require('./pesan');
 
 const getWorker = db.prepare('SELECT * FROM workers WHERE telegram_id = ?');
 const setActive = db.prepare(
@@ -49,6 +50,12 @@ function updateLocation(bot, msg) {
   setLocation.run(msg.location.latitude, msg.location.longitude, msg.from.id);
   bot.sendMessage(chatId, 'Lokasi tercatat. Siap menerima orderan.', {
     reply_markup: { remove_keyboard: true },
+  });
+
+  tawarkanOrderTertunda(bot, {
+    telegram_id: msg.from.id,
+    lat: msg.location.latitude,
+    lng: msg.location.longitude,
   });
 }
 
