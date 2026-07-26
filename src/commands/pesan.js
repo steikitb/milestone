@@ -5,8 +5,11 @@ const MAX_RADIUS_KM = Number(process.env.MODULE_RADIUS_KM || 3);
 const PRIORITAS_SEPI_WINDOW_MS = 8000; // README §"5 gagasan" — 8 detik pertama utk yang paling sepi
 
 const MODULES = ['mijek', 'mibeli', 'miservis'];
+const MODULE_LABELS = { mijek: '🛵 Mijek (antar/kurir)', mibeli: '🛍️ Mibeli (titip-beli)', miservis: '🔧 Miservis (jasa panggilan)' };
 
-// draft pesanan menunggu lokasi: chatId -> { module, description }
+// draft pesanan: chatId -> { module } saat menunggu deskripsi diketik,
+// lalu chatId -> { module, description } saat menunggu lokasi dibagikan.
+const pendingModuleChoice = new Map();
 const pendingDrafts = new Map();
 
 const insertOrder = db.prepare(`
@@ -14,26 +17,53 @@ const insertOrder = db.prepare(`
   VALUES (@requester_telegram_id, @requester_name, @module, @description, @lat, @lng)
 `);
 const getOrder = db.prepare('SELECT * FROM orders WHERE id = ?');
-const setBroadcastIds = db.prepare('UPDATE orders SET broadcast_message_ids = ? WHERE id = ?');
 const activeWorkersWithLocation = db.prepare(
   'SELECT * FROM workers WHERE active = 1 AND lat IS NOT NULL AND lng IS NOT NULL'
 );
+
+function moduleKeyboard() {
+  return {
+    reply_markup: {
+      inline_keyboard: MODULES.map((m) => [{ text: MODULE_LABELS[m], callback_data: `modul:${m}` }]),
+    },
+  };
+}
 
 function mulai(bot, msg, args) {
   const chatId = msg.chat.id;
   const module_ = (args[0] || '').toLowerCase();
   const description = args.slice(1).join(' ').trim();
 
-  if (!MODULES.includes(module_)) {
-    bot.sendMessage(chatId, `Format: /pesan <modul> <deskripsi>\nModul: ${MODULES.join(', ')}`);
-    return;
-  }
-  if (!description) {
-    bot.sendMessage(chatId, 'Sertakan deskripsi singkat, misal: /pesan mibeli beliin nasi padang di warung pak budi');
+  // Format lama /pesan <modul> <deskripsi> tetap didukung.
+  if (MODULES.includes(module_) && description) {
+    pendingDrafts.set(chatId, { module: module_, description });
+    askLocation(bot, chatId);
     return;
   }
 
-  pendingDrafts.set(chatId, { module: module_, description });
+  bot.sendMessage(chatId, 'Mau pesan modul apa?', moduleKeyboard());
+}
+
+function pilihModul(bot, callbackQuery, module_) {
+  const chatId = callbackQuery.message.chat.id;
+  pendingModuleChoice.set(chatId, module_);
+  bot.answerCallbackQuery(callbackQuery.id);
+  bot.sendMessage(chatId, `${MODULE_LABELS[module_]} dipilih. Ketik deskripsi pesananmu (contoh: "beliin nasi padang di warung pak budi").`);
+}
+
+// Pesan teks biasa (bukan command) dipakai sebagai deskripsi kalau lagi menunggu.
+function cobaSebagaiDeskripsi(bot, msg) {
+  const chatId = msg.chat.id;
+  const module_ = pendingModuleChoice.get(chatId);
+  if (!module_ || !msg.text || msg.text.startsWith('/')) return false;
+
+  pendingModuleChoice.delete(chatId);
+  pendingDrafts.set(chatId, { module: module_, description: msg.text.trim() });
+  askLocation(bot, chatId);
+  return true;
+}
+
+function askLocation(bot, chatId) {
   bot.sendMessage(chatId, 'Kirim lokasi tujuan/lokasi kamu sekarang.', {
     reply_markup: {
       keyboard: [[{ text: 'Bagikan Lokasi', request_location: true }]],
@@ -62,7 +92,9 @@ async function handleLocation(bot, msg) {
   });
   const orderId = order.lastInsertRowid;
 
-  bot.sendMessage(chatId, `Orderan #${orderId} dibuat, mencari pekerja terdekat...`);
+  bot.sendMessage(chatId, `Orderan #${orderId} dibuat, mencari pekerja terdekat...`, {
+    reply_markup: { remove_keyboard: true },
+  });
 
   const candidates = activeWorkersWithLocation
     .all()
@@ -91,11 +123,10 @@ async function handleLocation(bot, msg) {
 
 function broadcastToWorkers(bot, orderId, draft, workers) {
   workers.forEach((w) => {
-    bot.sendMessage(
-      w.telegram_id,
-      `📦 Orderan #${orderId} [${draft.module}]\n${draft.description}\n\nBalas /terima_${orderId} untuk ambil.`
-    );
+    bot.sendMessage(w.telegram_id, `📦 Orderan #${orderId} [${draft.module}]\n${draft.description}`, {
+      reply_markup: { inline_keyboard: [[{ text: '✅ Terima', callback_data: `terima:${orderId}` }]] },
+    });
   });
 }
 
-module.exports = { mulai, handleLocation, MODULES };
+module.exports = { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation, MODULES };

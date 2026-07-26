@@ -3,7 +3,7 @@ const { TelegramBot } = require('node-telegram-bot-api');
 
 const { register } = require('./commands/daftar');
 const { aktif, nonaktif, updateLocation } = require('./commands/status');
-const { mulai, handleLocation, MODULES } = require('./commands/pesan');
+const { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation } = require('./commands/pesan');
 const { terima, selesai } = require('./commands/terima');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -20,9 +20,7 @@ bot.on('message', (msg) => console.log('pesan masuk:', msg.chat.id, JSON.stringi
 bot.onText(/^\/start$/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    `Selamat datang di Milestone.\n\n` +
-      `Pekerja: /daftar lalu /aktif\n` +
-      `Warga: /pesan <modul> <deskripsi> (modul: ${MODULES.join(', ')})`
+    `Selamat datang di Milestone.\n\n` + `Pekerja: /daftar lalu /aktif\n` + `Warga: /pesan (pilih modul lewat tombol)`
   );
 });
 
@@ -37,13 +35,47 @@ bot.onText(/^\/pesan(?:\s+(.+))?$/, (msg, match) => {
   mulai(bot, msg, args);
 });
 
-bot.onText(/^\/terima_(\d+)$/, (msg, match) => terima(bot, msg, Number(match[1])));
-bot.onText(/^\/selesai_(\d+)$/, (msg, match) => selesai(bot, msg, Number(match[1])));
+// Fallback lama, tetap didukung selain tombol.
+bot.onText(/^\/terima_(\d+)$/, (msg, match) => terima(bot, msg.from.id, msg.chat.id, Number(match[1])));
+bot.onText(/^\/selesai_(\d+)$/, (msg, match) => selesai(bot, msg.from.id, msg.chat.id, Number(match[1])));
 
-// Satu handler lokasi dipakai bergantian oleh alur /aktif dan /pesan.
 bot.on('location', (msg) => {
   updateLocation(bot, msg);
   handleLocation(bot, msg);
+});
+
+// Deskripsi pesanan diketik sebagai teks biasa setelah modul dipilih lewat tombol.
+bot.on('message', (msg) => {
+  if (msg.text && !msg.text.startsWith('/')) {
+    cobaSebagaiDeskripsi(bot, msg);
+  }
+});
+
+bot.on('callback_query', (query) => {
+  const data = query.data || '';
+  const chatId = query.message.chat.id;
+  const fromId = query.from.id;
+
+  const clearButton = () =>
+    bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: query.message.message_id }).catch(() => {});
+
+  if (data.startsWith('modul:')) {
+    pilihModul(bot, query, data.slice('modul:'.length));
+    return;
+  }
+  if (data.startsWith('terima:')) {
+    terima(bot, fromId, chatId, Number(data.slice('terima:'.length)));
+    bot.answerCallbackQuery(query.id);
+    clearButton();
+    return;
+  }
+  if (data.startsWith('selesai:')) {
+    selesai(bot, fromId, chatId, Number(data.slice('selesai:'.length)));
+    bot.answerCallbackQuery(query.id);
+    clearButton();
+    return;
+  }
+  bot.answerCallbackQuery(query.id);
 });
 
 console.log('Milestone bot Fase 0 jalan (polling).');

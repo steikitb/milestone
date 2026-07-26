@@ -12,9 +12,12 @@ const bumpWorkerCount = db.prepare(
   'UPDATE workers SET orders_completed_today = orders_completed_today + 1 WHERE id = ?'
 );
 
-function terima(bot, msg, orderId) {
-  const chatId = msg.chat.id;
-  const worker = getWorker.get(msg.from.id);
+const selesaiButton = (orderId) => ({
+  reply_markup: { inline_keyboard: [[{ text: '✅ Tandai Selesai', callback_data: `selesai:${orderId}` }]] },
+});
+
+function terima(bot, fromId, chatId, orderId) {
+  const worker = getWorker.get(fromId);
   if (!worker) {
     bot.sendMessage(chatId, 'Belum terdaftar sebagai pekerja. Pakai /daftar dulu.');
     return;
@@ -27,14 +30,13 @@ function terima(bot, msg, orderId) {
   }
 
   const order = getOrder.get(orderId);
-  bot.sendMessage(chatId, `Orderan #${orderId} diterima. Selesaikan lalu balas /selesai_${orderId}.`);
+  bot.sendMessage(chatId, `Orderan #${orderId} diterima.`, selesaiButton(orderId));
   bot.sendMessage(order.requester_telegram_id, `${worker.name} menerima orderan #${orderId} kamu. Kontaknya:`);
   bot.sendContact(order.requester_telegram_id, worker.phone, worker.name);
 }
 
-function selesai(bot, msg, orderId) {
-  const chatId = msg.chat.id;
-  const worker = getWorker.get(msg.from.id);
+function selesai(bot, fromId, chatId, orderId) {
+  const worker = getWorker.get(fromId);
   if (!worker) return;
 
   const result = completeOrder.run(orderId, worker.id);
