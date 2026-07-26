@@ -40,13 +40,15 @@ menunggu→diterima→selesai berhasil. Yang sudah ada:
 - Prioritas Sepi: 8 detik pertama hanya ke pekerja aktif dengan orderan tersedikit
   hari ini, baru dibuka ke semua yang aktif dalam radius
 - SQLite (WAL) lokal, tanpa iuran/ledger sama sekali
-- **Web pemesanan mandiri** (`src/web/`) — tambahan di luar Telegram, tanpa install
-  apa pun: buka halaman, pilih modul, isi deskripsi, pakai lokasi browser, kirim.
-  Status dipantau lewat halaman `order.html` yang polling, bukan notifikasi push.
-  Tanpa OTP/verifikasi (dummy, sesuai skala Fase 0) — jalan di proses Node yang sama
-  dengan bot lewat Fastify, sesuai [docs/03](docs/03-arsitektur.md).
 
-**Belum ada** (sengaja, per roadmap): peta/Leaflet di web, dashboard transparansi,
+**Web lengkap (daftar, aktif/lokasi, pesan, terima, selesai — semua tanpa
+Telegram) sekarang ada di aplikasi PHP terpisah** (pola sama seperti aplikasi
+lain di ekosistem lokal ini, lihat `port-manager`), repo lokal tersendiri, belum
+dipublikasikan. Repo Node ini isinya khusus bot Telegram. Kedua aplikasi berbagi
+database SQLite yang sama, jadi pekerja/order dari salah satu sisi langsung
+terlihat di sisi lain.
+
+**Belum ada di bot Telegram** (sengaja, per roadmap): dashboard transparansi,
 koperasi, iuran berjenjang, Dana Senyum, modul warung. Juga belum ada reset harian
 `orders_completed_today` (perlu cron/job terpisah sebelum dipakai lintas hari).
 
@@ -57,9 +59,6 @@ npm install
 cp .env.example .env   # isi TELEGRAM_BOT_TOKEN dari @BotFather
 npm start
 ```
-
-Bot Telegram dan web pemesanan (default `http://localhost:8787`) jalan bersamaan
-dari perintah yang sama.
 
 ## Peta dokumen
 
