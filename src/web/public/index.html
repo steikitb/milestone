@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milestone — Pesan</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="wrap">
+  <h1>Milestone</h1>
+  <p class="sub">Infrastruktur ekonomi lokal tanpa tengkulak digital. Order langsung ke pekerja terdekat, bayar langsung tunai/QRIS — platform tidak pernah pegang uangmu.</p>
+
+  <form id="order-form">
+    <label class="field-label">Pilih modul</label>
+    <div id="module-picker" class="module-picker"></div>
+
+    <label class="field-label" for="description">Deskripsi pesanan</label>
+    <textarea id="description" name="description" rows="3" placeholder='mis. "beliin nasi padang di warung pak budi"' required></textarea>
+
+    <label class="field-label" for="name">Nama kamu</label>
+    <input id="name" name="name" type="text" placeholder="Nama" required>
+
+    <label class="field-label" for="phone">Nomor HP (opsional, biar pekerja bisa hubungi balik)</label>
+    <input id="phone" name="phone" type="tel" placeholder="08xxxxxxxxxx">
+
+    <label class="field-label">Lokasi</label>
+    <button type="button" id="btn-location" class="btn btn-secondary">📍 Pakai lokasi saya sekarang</button>
+    <p id="location-status" class="hint">Belum diambil.</p>
+
+    <button type="submit" id="btn-submit" class="btn btn-primary" disabled>Buat Orderan</button>
+    <p id="form-error" class="error"></p>
+  </form>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>

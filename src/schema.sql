@@ -15,8 +15,10 @@ CREATE TABLE IF NOT EXISTS workers (
 
 CREATE TABLE IF NOT EXISTS orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  requester_telegram_id INTEGER NOT NULL,
+  requester_telegram_id INTEGER NOT NULL DEFAULT 0, -- 0 = pemesan dari web, bukan Telegram
   requester_name TEXT NOT NULL,
+  requester_phone TEXT,
+  source TEXT NOT NULL DEFAULT 'telegram' CHECK (source IN ('telegram', 'web')),
   module TEXT NOT NULL CHECK (module IN ('mijek', 'mibeli', 'miservis')),
   description TEXT NOT NULL,
   lat REAL NOT NULL,

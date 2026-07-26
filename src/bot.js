@@ -5,6 +5,7 @@ const { register } = require('./commands/daftar');
 const { aktif, nonaktif, updateLocation } = require('./commands/status');
 const { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation, hasPendingDraft } = require('./commands/pesan');
 const { terima, selesai } = require('./commands/terima');
+const { buildServer } = require('./web/server');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -83,5 +84,14 @@ bot.on('callback_query', (query) => {
   }
   bot.answerCallbackQuery(query.id);
 });
+
+const PORT = Number(process.env.PORT || 8787);
+buildServer(bot)
+  .listen({ port: PORT, host: '0.0.0.0' })
+  .then(() => console.log(`Web pemesanan jalan di http://localhost:${PORT}`))
+  .catch((err) => {
+    console.error('Gagal jalankan web server:', err.message);
+    process.exit(1);
+  });
 
 console.log('Milestone bot Fase 0 jalan (polling).');

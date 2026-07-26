@@ -26,19 +26,28 @@ Modul-modul dipakai lewat pola nama "Mi-":
 
 ## Status
 
-**Fase 0 — dummy/skeleton awal.** Belum pernah dijalankan dengan pekerja/warga
-sungguhan. Yang sudah ada:
+**Fase 0 — sudah diuji dengan 2 akun Telegram asli**, siklus penuh
+menunggu→diterima→selesai berhasil. Yang sudah ada:
 
 - `/daftar` — verifikasi kontak bawaan Telegram
 - `/aktif` `/nonaktif` + share location bawaan Telegram (tanpa peta, tanpa geocoding)
-- `/pesan <modul> <deskripsi>` → siaran gelombang → `/terima_<id>` → `/selesai_<id>`
+- `/pesan` → pilih modul lewat tombol → ketik deskripsi → share lokasi → siaran
+  gelombang dengan tombol "✅ Terima" / "✅ Tandai Selesai" (format lama
+  `/pesan <modul> <deskripsi>` dan `/terima_<id>` `/selesai_<id>` tetap didukung)
+- Order yang menunggu tetap ditawarkan ke pekerja yang baru aktif belakangan
+  (tidak "terkubur" kalau dibuat sebelum ada pekerja aktif)
 - Jarak: haversine × 1,3 (lihat [docs/01](docs/01-analisis-konsep-awal.md))
 - Prioritas Sepi: 8 detik pertama hanya ke pekerja aktif dengan orderan tersedikit
   hari ini, baru dibuka ke semua yang aktif dalam radius
 - SQLite (WAL) lokal, tanpa iuran/ledger sama sekali
+- **Web pemesanan mandiri** (`src/web/`) — tambahan di luar Telegram, tanpa install
+  apa pun: buka halaman, pilih modul, isi deskripsi, pakai lokasi browser, kirim.
+  Status dipantau lewat halaman `order.html` yang polling, bukan notifikasi push.
+  Tanpa OTP/verifikasi (dummy, sesuai skala Fase 0) — jalan di proses Node yang sama
+  dengan bot lewat Fastify, sesuai [docs/03](docs/03-arsitektur.md).
 
-**Belum ada** (sengaja, per roadmap): PWA, dashboard transparansi, koperasi, iuran
-berjenjang, Dana Senyum, modul warung. Juga belum ada reset harian
+**Belum ada** (sengaja, per roadmap): peta/Leaflet di web, dashboard transparansi,
+koperasi, iuran berjenjang, Dana Senyum, modul warung. Juga belum ada reset harian
 `orders_completed_today` (perlu cron/job terpisah sebelum dipakai lintas hari).
 
 ## Menjalankan
@@ -48,6 +57,9 @@ npm install
 cp .env.example .env   # isi TELEGRAM_BOT_TOKEN dari @BotFather
 npm start
 ```
+
+Bot Telegram dan web pemesanan (default `http://localhost:8787`) jalan bersamaan
+dari perintah yang sama.
 
 ## Peta dokumen
 

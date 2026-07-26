@@ -7,14 +7,14 @@ const PRIORITAS_SEPI_WINDOW_MS = 8000; // README §"5 gagasan" — 8 detik perta
 const MODULES = ['mijek', 'mibeli', 'miservis'];
 const MODULE_LABELS = { mijek: '🛵 Mijek (antar/kurir)', mibeli: '🛍️ Mibeli (titip-beli)', miservis: '🔧 Miservis (jasa panggilan)' };
 
-// draft pesanan: chatId -> { module } saat menunggu deskripsi diketik,
+// draft pesanan Telegram: chatId -> { module } saat menunggu deskripsi diketik,
 // lalu chatId -> { module, description } saat menunggu lokasi dibagikan.
 const pendingModuleChoice = new Map();
 const pendingDrafts = new Map();
 
 const insertOrder = db.prepare(`
-  INSERT INTO orders (requester_telegram_id, requester_name, module, description, lat, lng)
-  VALUES (@requester_telegram_id, @requester_name, @module, @description, @lat, @lng)
+  INSERT INTO orders (requester_telegram_id, requester_name, requester_phone, source, module, description, lat, lng)
+  VALUES (@requester_telegram_id, @requester_name, @requester_phone, @source, @module, @description, @lat, @lng)
 `);
 const getOrder = db.prepare('SELECT * FROM orders WHERE id = ?');
 const activeWorkersWithLocation = db.prepare(
@@ -98,55 +98,80 @@ function askLocation(bot, chatId) {
 
 // Prioritas Sepi: 8 detik pertama hanya ditawarkan ke pekerja aktif dalam radius
 // dengan orderan tersedikit hari ini. Baru setelah itu dibuka untuk semua yang aktif
-// dalam radius. Lihat README §"5 gagasan" dan docs/03-arsitektur.md.
+// dalam radius. Dipakai bareng oleh alur Telegram (/pesan) dan web (POST /api/orders).
+// Lihat README §"5 gagasan" dan docs/03-arsitektur.md.
+function createOrderAndBroadcast(bot, params) {
+  const order = insertOrder.run({
+    requester_telegram_id: params.requester_telegram_id ?? 0, // 0 = pemesan dari web
+    requester_name: params.requester_name,
+    requester_phone: params.requester_phone ?? null,
+    source: params.source || 'telegram',
+    module: params.module,
+    description: params.description,
+    lat: params.lat,
+    lng: params.lng,
+  });
+  const orderId = order.lastInsertRowid;
+
+  const candidates = activeWorkersWithLocation
+    .all()
+    .map((w) => ({ ...w, distanceKm: estimateDistanceKm(w.lat, w.lng, params.lat, params.lng) }))
+    .filter((w) => w.distanceKm <= MAX_RADIUS_KM)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  if (candidates.length === 0) {
+    return { orderId, candidateCount: 0 };
+  }
+
+  const minOrders = Math.min(...candidates.map((w) => w.orders_completed_today));
+  const sepiTier = candidates.filter((w) => w.orders_completed_today === minOrders);
+  const restTier = candidates.filter((w) => w.orders_completed_today !== minOrders);
+  const order_ = { id: orderId, module: params.module, description: params.description };
+
+  sepiTier.forEach((w) => offerOrder(bot, w.telegram_id, order_));
+
+  setTimeout(() => {
+    const stillOpen = getOrder.get(orderId);
+    if (stillOpen && stillOpen.status === 'menunggu' && restTier.length > 0) {
+      restTier.forEach((w) => offerOrder(bot, w.telegram_id, order_));
+    }
+  }, PRIORITAS_SEPI_WINDOW_MS);
+
+  return { orderId, candidateCount: candidates.length };
+}
+
 async function handleLocation(bot, msg) {
   const chatId = msg.chat.id;
   const draft = pendingDrafts.get(chatId);
   if (!draft || !msg.location) return;
   pendingDrafts.delete(chatId);
 
-  const order = insertOrder.run({
+  const { orderId, candidateCount } = createOrderAndBroadcast(bot, {
     requester_telegram_id: msg.from.id,
     requester_name: `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim(),
+    source: 'telegram',
     module: draft.module,
     description: draft.description,
     lat: msg.location.latitude,
     lng: msg.location.longitude,
   });
-  const orderId = order.lastInsertRowid;
 
   bot.sendMessage(chatId, `Orderan #${orderId} dibuat, mencari pekerja terdekat...`, {
     reply_markup: { remove_keyboard: true },
   });
-
-  const candidates = activeWorkersWithLocation
-    .all()
-    .map((w) => ({ ...w, distanceKm: estimateDistanceKm(w.lat, w.lng, msg.location.latitude, msg.location.longitude) }))
-    .filter((w) => w.distanceKm <= MAX_RADIUS_KM)
-    .sort((a, b) => a.distanceKm - b.distanceKm);
-
-  if (candidates.length === 0) {
+  if (candidateCount === 0) {
     bot.sendMessage(chatId, 'Belum ada pekerja aktif di sekitar sini. Coba lagi nanti.');
-    return;
   }
-
-  const minOrders = Math.min(...candidates.map((w) => w.orders_completed_today));
-  const sepiTier = candidates.filter((w) => w.orders_completed_today === minOrders);
-  const restTier = candidates.filter((w) => w.orders_completed_today !== minOrders);
-
-  broadcastToWorkers(bot, orderId, draft, sepiTier);
-
-  setTimeout(() => {
-    const stillOpen = getOrder.get(orderId);
-    if (stillOpen && stillOpen.status === 'menunggu' && restTier.length > 0) {
-      broadcastToWorkers(bot, orderId, draft, restTier);
-    }
-  }, PRIORITAS_SEPI_WINDOW_MS);
 }
 
-function broadcastToWorkers(bot, orderId, draft, workers) {
-  const order = { id: orderId, module: draft.module, description: draft.description };
-  workers.forEach((w) => offerOrder(bot, w.telegram_id, order));
-}
-
-module.exports = { mulai, pilihModul, cobaSebagaiDeskripsi, handleLocation, hasPendingDraft, tawarkanOrderTertunda, MODULES };
+module.exports = {
+  mulai,
+  pilihModul,
+  cobaSebagaiDeskripsi,
+  handleLocation,
+  hasPendingDraft,
+  tawarkanOrderTertunda,
+  createOrderAndBroadcast,
+  MODULES,
+  MODULE_LABELS,
+};

@@ -31,8 +31,12 @@ function terima(bot, fromId, chatId, orderId) {
 
   const order = getOrder.get(orderId);
   bot.sendMessage(chatId, `Orderan #${orderId} diterima.`, selesaiButton(orderId));
-  bot.sendMessage(order.requester_telegram_id, `${worker.name} menerima orderan #${orderId} kamu. Kontaknya:`);
-  bot.sendContact(order.requester_telegram_id, worker.phone, worker.name);
+  // Pemesan dari web (bukan Telegram) tidak punya requester_telegram_id — statusnya
+  // dipantau lewat polling halaman order, bukan notifikasi push.
+  if (order.requester_telegram_id) {
+    bot.sendMessage(order.requester_telegram_id, `${worker.name} menerima orderan #${orderId} kamu. Kontaknya:`);
+    bot.sendContact(order.requester_telegram_id, worker.phone, worker.name);
+  }
 }
 
 function selesai(bot, fromId, chatId, orderId) {
@@ -48,7 +52,9 @@ function selesai(bot, fromId, chatId, orderId) {
   bumpWorkerCount.run(worker.id);
   const order = getOrder.get(orderId);
   bot.sendMessage(chatId, `Orderan #${orderId} ditandai selesai. Pembayaran langsung antar kamu dan pemesan (tunai/QRIS pribadi).`);
-  bot.sendMessage(order.requester_telegram_id, `Orderan #${orderId} sudah ditandai selesai oleh ${worker.name}.`);
+  if (order.requester_telegram_id) {
+    bot.sendMessage(order.requester_telegram_id, `Orderan #${orderId} sudah ditandai selesai oleh ${worker.name}.`);
+  }
 }
 
 module.exports = { terima, selesai };
